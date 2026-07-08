@@ -13,30 +13,30 @@
   ],
   "icons": [
     {
-      "src": "ICON.gif",
+      "src": "icon.png",
       "sizes": "512x512",
-      "type": "image/gif",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "ICON.gif",
+      "src": "icon.png",
       "sizes": "512x512",
-      "type": "image/gif",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "ICON.gif",
+      "src": "icon.png",
       "sizes": "512x512",
-      "type": "image/gif",
+      "type": "image/png",
       "form_factor": "narrow",
       "label": "Tela Inicial do NINE no Celular"
     },
     {
-      "src": "ICON.gif",
+      "src": "icon.png",
       "sizes": "512x512",
-      "type": "image/gif",
+      "type": "image/png",
       "form_factor": "wide",
       "label": "Tela Inicial do NINE no Computador"
     }
