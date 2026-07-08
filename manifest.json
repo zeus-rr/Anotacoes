@@ -1,18 +1,44 @@
 {
   "name": "NINE-ANOTAÇÕES",
   "short_name": "NINE",
-  "description": "Aplicativo de anotações local desenvolvido por Rafael Rodrigues",
+  "description": "Aplicativo de anotações local desenvolvido por Rafael Rodrigues com suporte a pastas e mídias múltiplas.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "orientation": "portrait",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "ICON.gif",
       "sizes": "512x512",
       "type": "image/gif",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "ICON.gif",
+      "sizes": "512x512",
+      "type": "image/gif",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "ICON.gif",
+      "sizes": "512x512",
+      "type": "image/gif",
+      "form_factor": "narrow",
+      "label": "Tela Inicial do NINE no Celular"
+    },
+    {
+      "src": "ICON.gif",
+      "sizes": "512x512",
+      "type": "image/gif",
+      "form_factor": "wide",
+      "label": "Tela Inicial do NINE no Computador"
     }
   ]
 }
