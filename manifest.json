@@ -1,0 +1,18 @@
+{
+  "name": "NINE-ANOTAÇÕES",
+  "short_name": "NINE",
+  "description": "Aplicativo de anotações local desenvolvido por Rafael Rodrigues",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "ICON.gif",
+      "sizes": "512x512",
+      "type": "image/gif",
+      "purpose": "any maskable"
+    }
+  ]
+}

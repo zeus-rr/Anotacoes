@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NINE-ANOTAÇÕES</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NINE-ANOTAÇÕES">
+    
+    <link rel="icon" type="image/gif" href="ICON.gif">
+    <link rel="apple-touch-icon" href="ICON.gif">
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+            .then(() => console.log('Service Worker Ativo!'))
+            .catch(err => console.log('Erro no Service Worker:', err));
+        }
+    </script>
+
+    <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-support: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .app-logo {
+            width: 75px;
+            height: 75px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            object-fit: cover;
+        }
+
+        header h1 { color: var(--primary); font-size: 1.6rem; font-weight: 800; letter-spacing: 1px; }
+        header p { color: var(--text-support); font-size: 0.85rem; }
+
+        .panel {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        input, textarea, select {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: var(--primary-hover); }
+        
+        .btn-cancel {
+            background: #475569;
+            margin-top: 8px;
+        }
+        .btn-cancel:hover { background: #334155; }
+
+        .folders-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .folder-card {
+            background: #334155;
+            padding: 16px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            position: relative;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            word-wrap: break-word;
+        }
+
+        .folder-card.active {
+            border-color: var(--primary);
+            background: #1e293b;
+        }
+
+        .folder-card .icon {
+            font-size: 2rem;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .folder-card .delete-folder {
+            position: absolute;
+            top: 4px;
+            right: 6px;
+            color: var(--text-support);
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .folder-card .delete-folder:hover { color: var(--danger); }
+
+        .notes-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .note-card {
+            background: var(--card-bg);
+            padding: 16px;
+            border-radius: 12px;
+            border-left: 5px solid var(--primary);
+            position: relative;
+        }
+
+        .note-card h3 { margin-bottom: 8px; font-size: 1.2rem; padding-right: 60px;}
+        .note-card p { color: #cbd5e1; white-space: pre-wrap; font-size: 0.95rem; margin-bottom: 12px; }
+        
+        .actions-zone {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .action-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-support);
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 0;
+        }
+        .action-btn:hover { color: var(--warning); }
+        .action-btn.delete:hover { color: var(--danger); }
+
+        .attachment-zone {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #334155;
+        }
+
+        .media-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 6px;
+            margin-top: 5px;
+        }
+
+        .file-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #60a5fa;
+            text-decoration: none;
+            background: #0f172a;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .file-link:hover { text-decoration: underline; }
+        
+        .empty-text {
+            text-align: center;
+            color: var(--text-support);
+            font-style: italic;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .tab-btn {
+            flex: 1;
+            background: #334155;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+        }
+
+        .backup-zone {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            border-top: 1px dashed #334155;
+            padding-top: 15px;
+        }
+        .btn-backup { background-color: #475569; font-size: 0.85rem; padding: 8px 12px; flex: 1;}
+        .btn-backup:hover { background-color: #334155; }
+        .btn-restore { background-color: var(--success); font-size: 0.85rem; padding: 8px 12px; flex: 1;}
+        .btn-restore:hover { background-color: #059669; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <img class="app-logo" src="ICON.gif" alt="Logo NINE">
+            <h1>NINE-ANOTAÇÕES</h1>
+            <p>Criado e Desenvolvido por Rafael Rodrigues</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" id="tabFolders" onclick="switchTab('folders')">📁 Pastas</button>
+            <button class="tab-btn" id="tabAdd" onclick="switchTab('add')">➕ Nova Nota</button>
+        </div>
+
+        <div id="sectionAdd" class="panel" style="display: none;">
+            <div id="folderFormGroup">
+                <h3 style="margin-bottom:12px;">Criar Nova Pasta</h3>
+                <div class="form-group" style="flex-direction: row;">
+                    <input type="text" id="folderName" placeholder="Nome da pasta..." style="flex: 1;">
+                    <button onclick="createFolder()">Criar</button>
+                </div>
+                <hr style="border-color:#334155; margin: 20px 0;">
+            </div>
+
+            <h3 style="margin-bottom:12px;" id="formFormTitle">Nova Nota</h3>
+            <form id="noteForm" onsubmit="saveNote(event)">
+                <input type="hidden" id="editNoteId" value="">
+
+                <div class="form-group">
+                    <label>Pasta Destino:</label>
+                    <select id="noteFolderSelect" required></select>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="noteTitle" placeholder="Título da nota..." required>
+                </div>
+                <div class="form-group">
+                    <textarea id="noteContent" placeholder="Conteúdo da anotação..." rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label id="fileLabel">Anexar Mídia (Fotos, MP4, JPG, PNG, PDF):</label>
+                    <input type="file" id="noteAttachment">
+                </div>
+                <button type="submit" id="btnSubmitNote" style="width: 100%;">Salvar Nota</button>
+                <button type="button" id="btnCancelEdit" class="btn-cancel" style="width: 100%; display: none;" onclick="cancelEdit()">Cancelar Edição</button>
+            </form>
+
+            <div class="backup-zone">
+                <button class="btn-backup" onclick="exportBackup()">📥 Exportar Backup</button>
+                <button class="btn-restore" onclick="document.getElementById('importFile').click()">📤 Importar Backup</button>
+                <input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(event)">
+            </div>
+        </div>
+
+        <div id="sectionFolders">
+            <h3 style="margin-bottom: 10px;">Suas Pastas:</h3>
+            <div class="folders-container" id="foldersList"></div>
+
+            <h3 style="margin-bottom: 10px; margin-top: 20px;" id="currentFolderName">Notas</h3>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <input type="text" id="searchNotes" placeholder="🔍 Pesquisar notas nesta pasta..." oninput="loadNotes()">
+            </div>
+
+            <div class="notes-list" id="notesList"></div>
+        </div>
+    </div>
+
+    <script>
+        const db = new Dexie("NineAnotacoesDB");
+        db.version(1).stores({
+            folders: '++id, name',
+            notes: '++id, folderId, title, content, date, fileName, fileType, fileBlob'
+        });
+
+        let currentFolderId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await ensureDefaultFolder();
+            await refreshFolders();
+            await loadNotes();
+        });
+
+        async function ensureDefaultFolder() {
+            const count = await db.folders.count();
+            if (count === 0) {
+                await db.folders.add({ name: "Principal" });
+            }
+            const firstFolder = await db.folders.toCollection().first();
+            currentFolderId = firstFolder.id;
+        }
+
+        async function createFolder() {
+            const nameInput = document.getElementById('folderName');
+            const name = nameInput.value.trim();
+            if(!name) return;
+
+            await db.folders.add({ name: name });
+            nameInput.value = '';
+            await refreshFolders();
+            switchTab('folders');
+        }
+
+        async function refreshFolders() {
+            const folders = await db.folders.toArray();
+            const listEl = document.getElementById('foldersList');
+            const selectEl = document.getElementById('noteFolderSelect');
+            
+            listEl.innerHTML = '';
+            selectEl.innerHTML = '';
+
+            folders.forEach(folder => {
+                const activeClass = folder.id === currentFolderId ? 'active' : '';
+                listEl.innerHTML += `
+                    <div class="folder-card ${activeClass}" onclick="selectFolder(${folder.id}, '${folder.name}')">
+                        <span class="delete-folder" onclick="deleteFolder(event, ${folder.id})">✕</span>
+                        <span class="icon">📁</span>
+                        <strong>${folder.name}</strong>
+                    </div>
+                `;
+                selectEl.innerHTML += `<option value="${folder.id}">${folder.name}</option>`;
+            });
+
+            const current = folders.find(f => f.id === currentFolderId);
+            if(current) {
+                document.getElementById('currentFolderName').innerText = `Pasta: ${current.name}`;
+                selectEl.value = currentFolderId;
+            }
+        }
+
+        function selectFolder(id, name) {
+            currentFolderId = id;
+            const searchInput = document.getElementById('searchNotes');
+            if(searchInput) searchInput.value = '';
+            
+            refreshFolders();
+            loadNotes();
+        }
+
+        async function deleteFolder(event, id) {
+            event.stopPropagation();
+            if(confirm("Apagar esta pasta removerá permanentemente as notas internas. Continuar?")) {
+                await db.notes.where('folderId').equals(id).delete();
+                await db.folders.delete(id);
+                await ensureDefaultFolder();
+                await refreshFolders();
+                await loadNotes();
+            }
+        }
+
+        async function startEdit(id) {
+            const note = await db.notes.get(id);
+            if(!note) return;
+
+            document.getElementById('editNoteId').value = note.id;
+            document.getElementById('noteFolderSelect').value = note.folderId;
+            document.getElementById('noteTitle').value = note.title;
+            document.getElementById('noteContent').value = note.content;
+
+            document.getElementById('formFormTitle').innerText = "Editar Anotação";
+            document.getElementById('btnSubmitNote').innerText = "Atualizar Nota";
+            document.getElementById('folderFormGroup').style.display = 'none';
+            document.getElementById('btnCancelEdit').style.display = 'block';
+
+            switchTab('add');
+        }
+
+        function cancelEdit() {
+            document.getElementById('noteForm').reset();
+            document.getElementById('editNoteId').value = "";
+            document.getElementById('formFormTitle').innerText = "Nova Nota";
+            document.getElementById('btnSubmitNote').innerText = "Salvar Nota";
+            document.getElementById('folderFormGroup').style.display = 'block';
+            document.getElementById('btnCancelEdit').style.display = 'none';
+            switchTab('folders');
+        }
+
+        async function saveNote(e) {
+            e.preventDefault();
+            const editIdStr = document.getElementById('editNoteId').value;
+            const folderId = parseInt(document.getElementById('noteFolderSelect').value);
+            const title = document.getElementById('noteTitle').value.trim();
+            const content = document.getElementById('noteContent').value.trim();
+            const fileInput = document.getElementById('noteAttachment');
+            
+            let fileBlob = null;
+            let fileName = null;
+            let fileType = null;
+            let hasNewFile = fileInput.files.length > 0;
+
+            if(hasNewFile) {
+                const file = fileInput.files[0];
+                fileName = file.name;
+                fileType = file.type;
+                fileBlob = file; 
+            }
+
+            const date = new Date().toLocaleDateString('pt-BR', {
+                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+            }) + " (Editado)";
+
+            if (editIdStr) {
+                const id = parseInt(editIdStr);
+                const updatedData = { folderId, title, content, date };
+
+                if(hasNewFile) {
+                    updatedData.fileName = fileName;
+                    updatedData.fileType = fileType;
+                    updatedData.fileBlob = fileBlob;
+                }
+                await db.notes.update(id, updatedData);
+            } else {
+                const cleanDate = new Date().toLocaleDateString('pt-BR', {
+                    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+                });
+                await db.notes.add({
+                    folderId, title, content, date: cleanDate, fileName, fileType, fileBlob
+                });
+            }
+
+            cancelEdit();
+            currentFolderId = folderId;
+            await refreshFolders();
+            await loadNotes();
+        }
+
+        async function loadNotes() {
+            const notesList = document.getElementById('notesList');
+            notesList.innerHTML = '';
+
+            const searchInput = document.getElementById('searchNotes');
+            const searchQuery = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+            let notes = await db.notes.where('folderId').equals(currentFolderId).toArray();
+
+            if (searchQuery) {
+                notes = notes.filter(note => 
+                    note.title.toLowerCase().includes(searchQuery) || 
+                    (note.content && note.content.toLowerCase().includes(searchQuery))
+                );
+            }
+
+            if(notes.length === 0) {
+                notesList.innerHTML = searchQuery 
+                    ? '<p class="empty-text">Nenhuma nota corresponde à sua pesquisa.</p>'
+                    : '<p class="empty-text">Nenhuma anotação nesta pasta.</p>';
+                return;
+            }
+
+            notes.reverse().forEach(note => {
+                const card = document.createElement('div');
+                card.classList.add('note-card');
+                
+                let mediaHtml = '';
+                
+                if(note.fileBlob) {
+                    const fileURL = URL.createObjectURL(note.fileBlob);
+                    
+                    if(note.fileType.startsWith('image/')) {
+                        mediaHtml = `<img src="${fileURL}" class="media-preview" alt="imagem">`;
+                    } else if (note.fileType.startsWith('video/')) {
+                        mediaHtml = `<video src="${fileURL}" controls class="media-preview"></video>`;
+                    } else {
+                        mediaHtml = `<a href="${fileURL}" download="${note.fileName}" target="_blank" class="file-link">📎 Documento: ${note.fileName}</a>`;
+                    }
+                }
+
+                card.innerHTML = `
+                    <div class="actions-zone">
+                        <button class="action-btn" onclick="startEdit(${note.id})">✏️</button>
+                        <button class="action-btn delete" onclick="deleteNote(${note.id})">✕</button>
+                    </div>
+                    <h3>${note.title}</h3>
+                    ${note.content ? `<p>${note.content}</p>` : ''}
+                    <div style="font-size:0.75rem; color:var(--text-support);">${note.date}</div>
+                    ${mediaHtml ? `<div class="attachment-zone">${mediaHtml}</div>` : ''}
+                `;
+                notesList.appendChild(card);
+            });
+        }
+
+        async function deleteNote(id) {
+            if(confirm("Deseja apagar permanentemente esta nota?")) {
+                await db.notes.delete(id);
+                await loadNotes();
+            }
+        }
+
+        function switchTab(tab) {
+            const sectionAdd = document.getElementById('sectionAdd');
+            const sectionFolders = document.getElementById('sectionFolders');
+            const tabFolders = document.getElementById('tabFolders');
+            const tabAdd = document.getElementById('tabAdd');
+
+            if(tab === 'folders') {
+                sectionFolders.style.display = 'block';
+                sectionAdd.style.display = 'none';
+                tabFolders.classList.add('active');
+                tabAdd.classList.remove('active');
+                loadNotes();
+            } else {
+                sectionFolders.style.display = 'none';
+                sectionAdd.style.display = 'block';
+                tabAdd.classList.add('active');
+                tabFolders.classList.remove('active');
+            }
+        }
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function base64ToBlob(base64Data, type) {
+            const byteCharacters = atob(base64Data.split(',')[1]);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], {type: type});
+        }
+
+        async function exportBackup() {
+            try {
+                const folders = await db.folders.toArray();
+                const notes = await db.notes.toArray();
+
+                const processedNotes = await Promise.all(notes.map(async (note) => {
+                    let backupNote = { ...note };
+                    if (note.fileBlob) {
+                        backupNote.fileBlobBase64 = await blobToBase64(note.fileBlob);
+                        delete backupNote.fileBlob; 
+                    }
+                    return backupNote;
+                }));
+
+                const backupData = {
+                    version: 1,
+                    appName: "NINE-ANOTAÇÕES",
+                    exportedAt: new Date().toISOString(),
+                    folders: folders,
+                    notes: processedNotes
+                };
+
+                const jsonString = JSON.stringify(backupData);
+                const blob = new Blob([jsonString], { type: "application/json" });
+                const fileURL = URL.createObjectURL(blob);
+                
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.href = fileURL;
+                downloadAnchor.download = `backup_nine_anotacoes_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                
+                setTimeout(() => {
+                    URL.revokeObjectURL(fileURL);
+                    downloadAnchor.remove();
+                }, 100);
+
+            } catch (err) {
+                alert("Erro ao gerar arquivo de backup: " + err.message);
+            }
+        }
+
+        function importBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    if (data.appName !== "NINE-ANOTAÇÕES" || !data.folders || !data.notes) {
+                        throw new Error("Arquivo de backup inválido ou corrompido.");
+                    }
+
+                    if (confirm("Importar esse backup irá substituir/mesclar dados atuais. Deseja continuar?")) {
+                        await db.notes.clear();
+                        await db.folders.clear();
+
+                        for (let folder of data.folders) {
+                            await db.folders.add(folder);
+                        }
+
+                        for (let note of data.notes) {
+                            if (note.fileBlobBase64 && note.fileType) {
+                                note.fileBlob = base64ToBlob(note.fileBlobBase64, note.fileType);
+                                delete note.fileBlobBase64;
+                            }
+                            await db.notes.add(note);
+                        }
+
+                        alert("Backup restaurado com sucesso!");
+                        await ensureDefaultFolder();
+                        await refreshFolders();
+                        await loadNotes();
+                        switchTab('folders');
+                    }
+                } catch (err) {
+                    alert("Erro ao importar backup: " + err.message);
+                } finally {
+                    event.target.value = ''; 
+                }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
