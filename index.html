@@ -206,6 +206,9 @@
             margin-top: 10px;
             padding-top: 10px;
             border-top: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .media-preview {
@@ -225,6 +228,7 @@
             padding: 8px 12px;
             border-radius: 6px;
             font-size: 0.9rem;
+            width: fit-content;
         }
 
         .file-link:hover { text-decoration: underline; }
@@ -300,8 +304,8 @@
                     <textarea id="noteContent" placeholder="Conteúdo da anotação..." rows="4"></textarea>
                 </div>
                 <div class="form-group">
-                    <label id="fileLabel">Anexar Mídia (Fotos, MP4, JPG, PNG, PDF):</label>
-                    <input type="file" id="noteAttachment">
+                    <label id="fileLabel">Anexar Mídias (Você pode selecionar vários arquivos):</label>
+                    <input type="file" id="noteAttachment" multiple>
                 </div>
                 <button type="submit" id="btnSubmitNote" style="width: 100%;">Salvar Nota</button>
                 <button type="button" id="btnCancelEdit" class="btn-cancel" style="width: 100%; display: none;" onclick="cancelEdit()">Cancelar Edição</button>
@@ -330,9 +334,26 @@
 
     <script>
         const db = new Dexie("NineAnotacoesDB");
-        db.version(1).stores({
+        // Mudança estrutural: A versão do banco foi para 2 e agora suporta uma lista em "attachments"
+        db.version(2).stores({
             folders: '++id, name',
-            notes: '++id, folderId, title, content, date, fileName, fileType, fileBlob'
+            notes: '++id, folderId, title, content, date, attachments'
+        }).upgrade(tx => {
+            // Migração de dados automática para manter compatibilidade com notas antigas de um único arquivo
+            return tx.notes.toCollection().modify(note => {
+                if (note.fileBlob) {
+                    note.attachments = [{
+                        name: note.fileName,
+                        type: note.fileType,
+                        blob: note.fileBlob
+                    }];
+                    delete note.fileName;
+                    delete note.fileType;
+                    delete note.fileBlob;
+                } else {
+                    note.attachments = [];
+                }
+            });
         });
 
         let currentFolderId = null;
@@ -445,16 +466,16 @@
             const content = document.getElementById('noteContent').value.trim();
             const fileInput = document.getElementById('noteAttachment');
             
-            let fileBlob = null;
-            let fileName = null;
-            let fileType = null;
-            let hasNewFile = fileInput.files.length > 0;
-
-            if(hasNewFile) {
-                const file = fileInput.files[0];
-                fileName = file.name;
-                fileType = file.type;
-                fileBlob = file; 
+            let newAttachments = [];
+            if(fileInput.files.length > 0) {
+                for(let i = 0; i < fileInput.files.length; i++) {
+                    const file = fileInput.files[i];
+                    newAttachments.push({
+                        name: file.name,
+                        type: file.type,
+                        blob: file
+                    });
+                }
             }
 
             const date = new Date().toLocaleDateString('pt-BR', {
@@ -463,12 +484,13 @@
 
             if (editIdStr) {
                 const id = parseInt(editIdStr);
+                const existingNote = await db.notes.get(id);
                 const updatedData = { folderId, title, content, date };
 
-                if(hasNewFile) {
-                    updatedData.fileName = fileName;
-                    updatedData.fileType = fileType;
-                    updatedData.fileBlob = fileBlob;
+                if(fileInput.files.length > 0) {
+                    updatedData.attachments = newAttachments;
+                } else {
+                    updatedData.attachments = existingNote.attachments || [];
                 }
                 await db.notes.update(id, updatedData);
             } else {
@@ -476,7 +498,7 @@
                     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
                 });
                 await db.notes.add({
-                    folderId, title, content, date: cleanDate, fileName, fileType, fileBlob
+                    folderId, title, content, date: cleanDate, attachments: newAttachments
                 });
             }
 
@@ -515,16 +537,18 @@
                 
                 let mediaHtml = '';
                 
-                if(note.fileBlob) {
-                    const fileURL = URL.createObjectURL(note.fileBlob);
-                    
-                    if(note.fileType.startsWith('image/')) {
-                        mediaHtml = `<img src="${fileURL}" class="media-preview" alt="imagem">`;
-                    } else if (note.fileType.startsWith('video/')) {
-                        mediaHtml = `<video src="${fileURL}" controls class="media-preview"></video>`;
-                    } else {
-                        mediaHtml = `<a href="${fileURL}" download="${note.fileName}" target="_blank" class="file-link">📎 Documento: ${note.fileName}</a>`;
-                    }
+                if(note.attachments && note.attachments.length > 0) {
+                    note.attachments.forEach(file => {
+                        const fileURL = URL.createObjectURL(file.blob);
+                        
+                        if(file.type.startsWith('image/')) {
+                            mediaHtml += `<div><img src="${fileURL}" class="media-preview" alt="imagem"></div>`;
+                        } else if (file.type.startsWith('video/')) {
+                            mediaHtml += `<div><video src="${fileURL}" controls class="media-preview"></video></div>`;
+                        } else {
+                            mediaHtml += `<div><a href="${fileURL}" download="${file.name}" target="_blank" class="file-link">📎 ${file.name}</a></div>`;
+                        }
+                    });
                 }
 
                 card.innerHTML = `
@@ -594,15 +618,21 @@
 
                 const processedNotes = await Promise.all(notes.map(async (note) => {
                     let backupNote = { ...note };
-                    if (note.fileBlob) {
-                        backupNote.fileBlobBase64 = await blobToBase64(note.fileBlob);
-                        delete backupNote.fileBlob; 
+                    if (note.attachments && note.attachments.length > 0) {
+                        backupNote.attachments = await Promise.all(note.attachments.map(async (file) => {
+                            const base64 = await blobToBase64(file.blob);
+                            return {
+                                name: file.name,
+                                type: file.type,
+                                blobBase64: base64
+                            };
+                        }));
                     }
                     return backupNote;
                 }));
 
                 const backupData = {
-                    version: 1,
+                    version: 2,
                     appName: "NINE-ANOTAÇÕES",
                     exportedAt: new Date().toISOString(),
                     folders: folders,
@@ -651,9 +681,25 @@
                         }
 
                         for (let note of data.notes) {
+                            if (note.attachments && note.attachments.length > 0) {
+                                note.attachments = note.attachments.map(file => {
+                                    if (file.blobBase64) {
+                                        file.blob = base64ToBlob(file.blobBase64, file.type);
+                                        delete file.blobBase64;
+                                    }
+                                    return file;
+                                });
+                            }
+                            // Suporte para retrocompatibilidade caso o backup seja da versão 1
                             if (note.fileBlobBase64 && note.fileType) {
-                                note.fileBlob = base64ToBlob(note.fileBlobBase64, note.fileType);
+                                note.attachments = [{
+                                    name: note.fileName,
+                                    type: note.fileType,
+                                    blob: base64ToBlob(note.fileBlobBase64, note.fileType)
+                                }];
                                 delete note.fileBlobBase64;
+                                delete note.fileName;
+                                delete note.fileType;
                             }
                             await db.notes.add(note);
                         }
